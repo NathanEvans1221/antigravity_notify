@@ -76,6 +76,41 @@ npm install
 npm start
 ```
 
+### 4. 監控模式說明
+
+本工具支援兩種運行模式：
+
+#### 模式一：單機自動核准（無 Telegram）
+當 `.env` 中未設定 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_CHAT_ID` 時，系統會以單機模式運行，偵測到核准請求時會**自動核准**。
+
+```env
+# .env - 單機模式（自動核准）
+REMOTE_HOST=localhost
+REMOTE_PORT=9222
+```
+
+#### 模式二：Telegram 遠端控制
+設定完整的 Telegram Bot 資訊後，偵測到核准請求會發送通知，等待使用者點擊 `✅ 核准` 或 `❌ 拒絕` 按鈕。
+
+```env
+# .env - Telegram 遠端控制模式
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+REMOTE_HOST=localhost
+REMOTE_PORT=9222
+```
+
+#### 可選環境變數
+| 變數 | 預設值 | 說明 |
+|------|--------|------|
+| `REMOTE_HOST` | `localhost` | CDP 連線主機 |
+| `REMOTE_PORT` | `9222` | CDP 連線端口 |
+| `POLL_INTERVAL` | `1000` | 輪詢間隔（毫秒） |
+| `LOG_LEVEL` | `info` | 日誌級別 (debug/info/warn/error) |
+| `APPROVED_KEYWORDS` | `yes,y,approve,ok,好,確認,同意` | 核准關鍵字 |
+| `DENIED_KEYWORDS` | `no,n,deny,reject,不要,拒絕,不同意` | 拒絕關鍵字 |
+| `REQUIRE_WHITELIST` | `false` | 是否限制關鍵字白名單 |
+
 ---
 
 ## 📄 相關文件
