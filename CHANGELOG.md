@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+- 將 Repository 名稱從 `antigravity_-notify` 重新命名為 `antigravity_notify` 以符合命名規範。
+- 更新 `package.json` 中的專案名稱為 `antigravity_notify`。
+- 更新 Git Remote URL 至新的 Repository 地址。
+
 ### Added
 - 初始化專案結構。
 - 完成技術調查報告 [RESEARCH.md](RESEARCH.md)。

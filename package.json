@@ -1,5 +1,5 @@
 {
-  "name": "antigravity-notify",
+  "name": "antigravity_notify",
   "version": "1.0.0",
   "description": "一款針對 Antigravity AI IDE 設計的遠端監控與核准通知工具",
   "main": "src/index.js",
