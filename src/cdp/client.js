@@ -14,17 +14,41 @@ export class CDPClient {
     logger.info(`Connecting to CDP at ${this.host}:${this.port}...`);
     
     try {
+      let wsUrl = null;
+      
+      try {
+        const response = await fetch(`http://${this.host}:${this.port}/json/version`, {
+          signal: AbortSignal.timeout(5000)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          wsUrl = data.webSocketDebuggerUrl;
+          logger.info(`Found WebSocket URL: ${wsUrl}`);
+        }
+      } catch {
+        logger.debug('HTTP endpoint not available, trying fallback');
+      }
+      
+      if (!wsUrl) {
+        wsUrl = `ws://${this.host}:${this.port}/devtools/browser/${Date.now()}`;
+        logger.info(`Using fallback WebSocket URL: ${wsUrl}`);
+      }
+
       this.browser = await puppeteer.connect({
-        browserURL: `http://${this.host}:${this.port}`,
+        browserWSEndpoint: wsUrl,
         defaultViewport: null
       });
-      
+
       const pages = await this.browser.pages();
       this.page = pages[0] || await this.browser.newPage();
       
+      if (!this.page) {
+        throw new Error('Failed to get or create page');
+      }
+
       logger.info('Connected to Antigravity IDE via CDP');
     } catch (error) {
-      logger.error('Failed to connect to CDP:', error.message);
+      logger.error('Failed to connect to CDP:', error.message, { host: this.host, port: this.port });
       throw error;
     }
   }
@@ -56,6 +80,7 @@ export class CDPClient {
 
   async checkApprovalState() {
     if (!this.page) {
+      logger.debug('Page not initialized, skipping check');
       return { hasApproval: false };
     }
     
@@ -80,7 +105,7 @@ export class CDPClient {
       return approvalInfo;
     } catch (error) {
       logger.debug('Error checking approval state:', error.message);
-      return { hasApproval: false };
+      return { hasApproval: false, error: error.message };
     }
   }
 
@@ -126,9 +151,13 @@ export class CDPClient {
   }
 
   async disconnect() {
-    if (this.browser) {
-      await this.browser.disconnect();
-      logger.info('Disconnected from CDP');
+    try {
+      if (this.browser) {
+        await this.browser.disconnect();
+        logger.info('Disconnected from CDP');
+      }
+    } catch (error) {
+      logger.error('Error disconnecting from CDP:', error.message);
     }
   }
 }

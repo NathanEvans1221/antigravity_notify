@@ -13,51 +13,82 @@ class AntigravityNotify {
   async start() {
     logger.info('Starting Antigravity Notify...');
     
-    this.validateConfig();
+    this.telegramBot = null;
     
-    this.telegramBot = new TelegramBot();
-    await this.telegramBot.start();
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+      this.telegramBot = new TelegramBot();
+      try {
+        await this.telegramBot.start();
+      } catch (error) {
+        logger.error('Failed to start Telegram Bot:', error);
+        this.telegramBot = null;
+      }
+    } else {
+      logger.warn('Telegram Bot Token 未設定，跳過通知功能');
+    }
     
     this.cdpClient = new CDPClient({
       host: process.env.REMOTE_HOST || 'localhost',
       port: parseInt(process.env.REMOTE_PORT || '9222', 10)
     });
     
-    await this.cdpClient.connect();
+    try {
+      await this.cdpClient.connect();
+    } catch (error) {
+      logger.error('Failed to connect to CDP:', error);
+      throw error;
+    }
     
     this.isRunning = true;
     logger.info('Antigravity Notify started successfully!');
     
-    await this.cdpClient.startMonitoring((event) => {
-      this.handleApprovalEvent(event);
-    });
+    try {
+      await this.cdpClient.startMonitoring((event) => {
+        this.handleApprovalEvent(event);
+      });
+    } catch (error) {
+      logger.error('Failed to start monitoring:', error);
+      throw error;
+    }
   }
 
   validateConfig() {
     if (!process.env.TELEGRAM_BOT_TOKEN) {
-      throw new Error('TELEGRAM_BOT_TOKEN is not set in .env file');
+      logger.warn('TELEGRAM_BOT_TOKEN 未設定，將以單機模式運行');
     }
     if (!process.env.TELEGRAM_CHAT_ID) {
-      throw new Error('TELEGRAM_CHAT_ID is not set in .env file');
+      logger.warn('TELEGRAM_CHAT_ID 未設定，將以單機模式運行');
     }
-    logger.info('Configuration validated');
   }
 
   async handleApprovalEvent(event) {
     logger.info('Approval event detected:', event);
     
-    await this.telegramBot.sendApprovalRequest(event, (action) => {
-      this.handleUserResponse(event, action);
-    });
+    if (this.telegramBot) {
+      try {
+        await this.telegramBot.sendApprovalRequest(event, (action) => {
+          this.handleUserResponse(event, action);
+        });
+      } catch (error) {
+        logger.error('Failed to send approval request:', error, { event });
+      }
+    } else {
+      logger.info('單機模式：自動核准 (如需手動操作，請設定 Telegram Bot)');
+      await this.handleUserResponse(event, 'approve');
+    }
   }
 
   async handleUserResponse(event, action) {
     logger.info(`User responded with: ${action}`);
     
-    if (action === 'approve') {
-      await this.cdpClient.clickApprove();
-    } else if (action === 'deny') {
-      await this.cdpClient.clickDeny();
+    try {
+      if (action === 'approve') {
+        await this.cdpClient.clickApprove();
+      } else if (action === 'deny') {
+        await this.cdpClient.clickDeny();
+      }
+    } catch (error) {
+      logger.error('Failed to handle user response:', error, { action, event });
     }
   }
 
@@ -66,11 +97,19 @@ class AntigravityNotify {
     this.isRunning = false;
     
     if (this.cdpClient) {
-      await this.cdpClient.disconnect();
+      try {
+        await this.cdpClient.disconnect();
+      } catch (error) {
+        logger.error('Error disconnecting CDP client:', error);
+      }
     }
     
     if (this.telegramBot) {
-      await this.telegramBot.stop();
+      try {
+        await this.telegramBot.stop();
+      } catch (error) {
+        logger.error('Error stopping Telegram bot:', error);
+      }
     }
     
     logger.info('Antigravity Notify stopped');
@@ -80,13 +119,25 @@ class AntigravityNotify {
 const app = new AntigravityNotify();
 
 process.on('SIGINT', async () => {
+  logger.info('Received SIGINT signal');
   await app.stop();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
+  logger.info('Received SIGTERM signal');
   await app.stop();
   process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
 
 app.start().catch((err) => {

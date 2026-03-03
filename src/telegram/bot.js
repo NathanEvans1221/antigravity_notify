@@ -20,84 +20,115 @@ export class TelegramBot {
   }
 
   setupCommands() {
-    this.bot.command('start', (ctx) => {
-      ctx.reply('Antigravity Notify 已啟動！\n\n當 Antigravity IDE 需要核准時，您會收到通知。');
-    });
-
-    this.bot.command('status', (ctx) => {
-      ctx.reply('✅ 服務運行中');
-    });
-
-    this.bot.command('history', (ctx) => {
-      const history = this.historyStore.getHistory(10);
-      if (history.length === 0) {
-        ctx.reply('尚無歷史記錄');
-        return;
-      }
-
-      const text = history.map(h => {
-        const icon = h.action === 'approve' ? '✅' : '❌';
-        const time = new Date(h.created_at).toLocaleString('zh-TW');
-        return `${icon} ${h.event_type} - ${h.action}\n🕒 ${time}`;
-      }).join('\n\n');
-
-      ctx.reply(`📋 最近核准記錄\n\n${text}`);
-    });
-
-    this.bot.command('export', (ctx) => {
-      const format = ctx.message.text.split(' ')[1] || 'json';
-      
-      if (format === 'csv') {
-        const csv = this.historyStore.exportToCsv();
-        ctx.reply(csv || '無資料');
-      } else {
-        const json = this.historyStore.exportToJson();
-        ctx.reply(json || '無資料');
+    this.bot.command('start', async (ctx) => {
+      try {
+        await ctx.reply('Antigravity Notify 已啟動！\n\n當 Antigravity IDE 需要核准時，您會收到通知。');
+      } catch (error) {
+        logger.error('Error handling /start command:', error);
       }
     });
 
-    this.bot.on('text', (ctx) => {
-      const text = ctx.message.text.toLowerCase().trim();
+    this.bot.command('status', async (ctx) => {
+      try {
+        await ctx.reply('✅ 服務運行中');
+      } catch (error) {
+        logger.error('Error handling /status command:', error);
+      }
+    });
 
-      if (this.approvedKeywords.includes(text)) {
-        if (!this.isKeywordAllowed(text, this.approvedKeywords)) {
-          ctx.reply('⚠️ 指令不在白名單中，請使用 Inline 按鈕核准');
+    this.bot.command('history', async (ctx) => {
+      try {
+        const history = this.historyStore.getHistory(10);
+        if (history.length === 0) {
+          await ctx.reply('尚無歷史記錄');
           return;
         }
-        this.handleLastPendingRequest(ctx, 'approve');
-      } else if (this.deniedKeywords.includes(text)) {
-        if (!this.isKeywordAllowed(text, this.deniedKeywords)) {
-          ctx.reply('⚠️ 指令不在白名單中，請使用 Inline 按鈕拒絕');
-          return;
+
+        const text = history.map(h => {
+          const icon = h.action === 'approve' ? '✅' : '❌';
+          const time = new Date(h.created_at).toLocaleString('zh-TW');
+          return `${icon} ${h.event_type} - ${h.action}\n🕒 ${time}`;
+        }).join('\n\n');
+
+        await ctx.reply(`📋 最近核准記錄\n\n${text}`);
+      } catch (error) {
+        logger.error('Error handling /history command:', error);
+        await ctx.reply('取得歷史記錄失敗');
+      }
+    });
+
+    this.bot.command('export', async (ctx) => {
+      try {
+        const format = ctx.message.text.split(' ')[1] || 'json';
+        
+        if (format === 'csv') {
+          const csv = this.historyStore.exportToCsv();
+          await ctx.reply(csv || '無資料');
+        } else {
+          const json = this.historyStore.exportToJson();
+          await ctx.reply(json || '無資料');
         }
-        this.handleLastPendingRequest(ctx, 'deny');
+      } catch (error) {
+        logger.error('Error handling /export command:', error);
+        await ctx.reply('匯出失敗');
+      }
+    });
+
+    this.bot.on('text', async (ctx) => {
+      try {
+        const text = ctx.message.text.toLowerCase().trim();
+
+        if (this.approvedKeywords.includes(text)) {
+          if (!this.isKeywordAllowed(text, this.approvedKeywords)) {
+            await ctx.reply('⚠️ 指令不在白名單中，請使用 Inline 按鈕核准');
+            return;
+          }
+          this.handleLastPendingRequest(ctx, 'approve');
+        } else if (this.deniedKeywords.includes(text)) {
+          if (!this.isKeywordAllowed(text, this.deniedKeywords)) {
+            await ctx.reply('⚠️ 指令不在白名單中，請使用 Inline 按鈕拒絕');
+            return;
+          }
+          this.handleLastPendingRequest(ctx, 'deny');
+        }
+      } catch (error) {
+        logger.error('Error handling text message:', error);
       }
     });
 
     this.bot.action('approve', async (ctx) => {
-      const callbackData = ctx.callbackQuery.data;
-      const requestId = ctx.callbackQuery.message?.text;
-      
-      await ctx.answerCbQuery('已核准');
-      await ctx.editMessageReplyMarkup(null);
-      
-      if (this.pendingRequests.has(callbackData)) {
-        const callback = this.pendingRequests.get(callbackData);
-        callback('approve');
-        this.pendingRequests.delete(callbackData);
+      try {
+        const callbackData = ctx.callbackQuery.data;
+        
+        await ctx.answerCbQuery('已核准');
+        await ctx.editMessageReplyMarkup(null);
+        
+        if (this.pendingRequests.has(callbackData)) {
+          const callback = this.pendingRequests.get(callbackData);
+          callback('approve');
+          this.pendingRequests.delete(callbackData);
+        }
+      } catch (error) {
+        logger.error('Error handling approve action:', error);
+        await ctx.answerCbQuery('處理失敗');
       }
     });
 
     this.bot.action('deny', async (ctx) => {
-      const callbackData = ctx.callbackQuery.data;
-      
-      await ctx.answerCbQuery('已拒絕');
-      await ctx.editMessageReplyMarkup(null);
-      
-      if (this.pendingRequests.has(callbackData)) {
-        const callback = this.pendingRequests.get(callbackData);
-        callback('deny');
-        this.pendingRequests.delete(callbackData);
+      try {
+        const callbackData = ctx.callbackQuery.data;
+        
+        await ctx.answerCbQuery('已拒絕');
+        await ctx.editMessageReplyMarkup(null);
+        
+        if (this.pendingRequests.has(callbackData)) {
+          const callback = this.pendingRequests.get(callbackData);
+          callback('deny');
+          this.pendingRequests.delete(callbackData);
+        }
+      } catch (error) {
+        logger.error('Error handling deny action:', error);
+        await ctx.answerCbQuery('處理失敗');
       }
     });
   }
@@ -119,8 +150,31 @@ export class TelegramBot {
 
   async start() {
     logger.info('Starting Telegram Bot...');
-    await this.bot.launch();
-    logger.info('Telegram Bot started');
+    
+    const maxRetries = 3;
+    const retryDelay = 5000;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.bot.launch({
+          polling: {
+            timeout: 0,
+            limit: 1,
+            allowed_updates: []
+          }
+        });
+        logger.info('Telegram Bot started');
+        return;
+      } catch (error) {
+        logger.warn(`Bot launch attempt ${attempt} failed: ${error.message}`);
+        if (attempt < maxRetries) {
+          logger.info(`Retrying in ${retryDelay/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        } else {
+          throw error;
+        }
+      }
+    }
   }
 
   async sendApprovalRequest(event, callback) {
@@ -160,12 +214,18 @@ export class TelegramBot {
   }
 
   formatApprovalMessage(event) {
-    return `🔔 *核准請求*\n\n*類型:* ${event.type || 'Unknown'}\n*訊息:* ${event.message || '請確認此操作'}\n\n請選擇要執行的動作:`;
+    const eventType = event?.type || 'Unknown';
+    const eventMessage = event?.message || '請確認此操作';
+    return `🔔 *核准請求*\n\n*類型:* ${eventType}\n*訊息:* ${eventMessage}\n\n請選擇要執行的動作:`;
   }
 
   async stop() {
-    this.bot.stop();
-    this.historyStore.close();
-    logger.info('Telegram Bot stopped');
+    try {
+      this.bot.stop();
+      this.historyStore.close();
+      logger.info('Telegram Bot stopped');
+    } catch (error) {
+      logger.error('Error stopping Telegram Bot:', error);
+    }
   }
 }

@@ -40,3 +40,9 @@
 ## 📅 更新日期
 - 2026-03-03: 初始化任務清單。
 - 2026-03-03: 完成所有 Phase，實作指令回覆、歷史記錄、單機測試模式。
+- 2026-03-03: 防衛性編程優化 - 所有錯誤加入完整 log 追蹤：
+  - logger.js: 錯誤物件輸出 message/stack/cause，新增 errorWithContext 方法
+  - cdp/client.js: connect() 加入 timeout 及錯誤上下文，disconnect() 加入 try-catch
+  - telegram/bot.js: 所有 command/action handler 加入錯誤處理
+  - store/history.js: 資料庫初始化失敗時優雅處理，所有 CRUD 操作加入 try-catch
+  - index.js: 各階段獨立 try-catch，新增 uncaughtException/unhandledRejection 全域錯誤監聽

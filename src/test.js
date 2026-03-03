@@ -1,6 +1,5 @@
 import readline from 'readline';
 import { MockTelegramBot } from './telegram/mockBot.js';
-import { CDPClient } from './cdp/client.js';
 
 class TestRunner {
   constructor() {

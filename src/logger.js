@@ -14,7 +14,24 @@ class Logger {
     if (LOG_LEVELS[level] >= this.level) {
       const timestamp = new Date().toISOString();
       const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
-      console[level === 'error' ? 'error' : 'log'](prefix, ...args);
+      const output = args.map(arg => {
+        if (arg instanceof Error) {
+          return JSON.stringify({
+            message: arg.message,
+            stack: arg.stack,
+            cause: arg.cause?.message
+          }, null, 2);
+        }
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg, null, 2);
+          } catch {
+            return String(arg);
+          }
+        }
+        return String(arg);
+      });
+      console[level === 'error' ? 'error' : 'log'](prefix, ...output);
     }
   }
 
@@ -32,6 +49,10 @@ class Logger {
 
   error(...args) {
     this._log('error', ...args);
+  }
+
+  errorWithContext(context, error, extra = {}) {
+    this.error(`[${context}]`, error, extra);
   }
 }
 
