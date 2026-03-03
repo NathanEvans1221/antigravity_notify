@@ -120,11 +120,11 @@ graph LR
 
 ---
 
-## 9. 待確認事項
+## 9. 待確認事項 (已確認)
 
-- [ ] Antigravity 的日誌檔案路徑或輸出方式為何？
-- [ ] 需要支援哪些類型的核准請求？
-- [ ] 核准後的實際操作如何觸發？（透過 API？檔案修改？）
+- [x] **Antigravity 的輸出方式**：已確認捨棄日誌監控，採用 **Chrome DevTools Protocol (CDP)** 直接監控 UI。
+- [x] **支援型別**：初期優先支援「代碼審核 (Code Review)」與「終端執行 (Terminal Execution)」核准。
+- [x] **核准觸發機制**：透過 `puppeteer-core` 模擬 UI 點擊操作完成遠端核准。
 
 ---
 
